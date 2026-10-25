@@ -1,0 +1,7 @@
+[versions]
+junit = "4.13.2"
+snakeyaml = "2.9"
+
+[libraries]
+junit = { module = "junit:junit", version.ref = "junit" }
+snakeyaml = { module = "org.snakeyaml:snakeyaml-engine", version.ref = "snakeyaml" }
