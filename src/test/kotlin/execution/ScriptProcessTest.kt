@@ -5,8 +5,12 @@ import com.intellij.execution.process.ProcessListener
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.util.PathUtil
+import com.sun.jna.Native
 import dev.sashi0034.ProcessFixture
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -16,7 +20,9 @@ import java.util.concurrent.TimeUnit
 class ScriptProcessTest : BasePlatformTestCase() {
     fun testOutputInputArgumentsEnvironmentAndExitCode() {
         val directory = Files.createTempDirectory("script runner 日本語 ")
-        val process = ScriptProcessFactory.create(launch(directory, listOf("a b", "", "日本語", "\"quote\"", "${'$'}HOME")))
+        val unicodeArgument = "日本語😀"
+        val arguments = listOf("a b", "", unicodeArgument, "\"quote\"", "${'$'}HOME")
+        val process = ScriptProcessFactory.create(launch(directory, arguments, readWindowsArguments = SystemInfo.isWindows))
         val out = StringBuffer()
         val err = StringBuffer()
         val ready = CountDownLatch(1)
@@ -41,7 +47,7 @@ class ScriptProcessTest : BasePlatformTestCase() {
             assertTrue(out.contains("PARENT=true"))
             assertTrue(out.contains("ARG0=a b"))
             assertTrue(out.contains("ARG1=\r\n") || out.contains("ARG1=\n"))
-            assertTrue(out.contains("ARG2=日本語"))
+            assertEquals("ARG2=$unicodeArgument", out.lineSequence().firstOrNull { it.startsWith("ARG2=") })
             assertTrue(out.contains("ARG3=\"quote\""))
             assertTrue(out.contains("ARG4=${'$'}HOME"))
             assertTrue(out.contains("INPUT=入力テスト"))
@@ -94,10 +100,18 @@ class ScriptProcessTest : BasePlatformTestCase() {
         }
     }
 
-    private fun launch(directory: Path, args: List<String>): ScriptLaunch {
-        val executable = Path.of(System.getProperty("java.home"), "bin", if (System.getProperty("os.name").startsWith("Windows")) "java.exe" else "java")
-        val classpath = System.getProperty("scriptRunner.fixtureClasspath")
-        return ScriptLaunch("Fixture", executable.toString(), listOf("-Dfile.encoding=UTF-8", "-cp", classpath, ProcessFixture::class.java.name) + args,
+    private fun launch(directory: Path, args: List<String>, readWindowsArguments: Boolean = false): ScriptLaunch {
+        val executable = Path.of(System.getProperty("java.home"), "bin", if (SystemInfo.isWindows) "java.exe" else "java")
+        val jvmArguments = mutableListOf("-Dfile.encoding=UTF-8")
+        val classpath = mutableListOf(System.getProperty("scriptRunner.fixtureClasspath"))
+        if (readWindowsArguments) {
+            val jnaLibraryPath = checkNotNull(System.getProperty("jna.boot.library.path"))
+            jvmArguments += "-Djna.boot.library.path=$jnaLibraryPath"
+            classpath += PathUtil.getJarPathForClass(Native::class.java)
+        }
+        val fixtureArguments = if (readWindowsArguments) listOf(ProcessFixture.WINDOWS_ARGV) + args else args
+        return ScriptLaunch("Fixture", executable.toString(),
+            jvmArguments + listOf("-cp", classpath.joinToString(File.pathSeparator), ProcessFixture::class.java.name) + fixtureArguments,
             directory, mapOf("SCRIPT_RUNNER_TEST" to "override"))
     }
 

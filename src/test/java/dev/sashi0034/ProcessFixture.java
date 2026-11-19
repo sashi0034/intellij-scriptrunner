@@ -1,5 +1,9 @@
 package dev.sashi0034;
 
+import com.sun.jna.Function;
+import com.sun.jna.NativeLibrary;
+import com.sun.jna.platform.win32.Shell32Util;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
@@ -9,6 +13,8 @@ import java.util.Arrays;
 
 /** An external process fixture requiring no Python, shell, or other installed runtime. */
 public final class ProcessFixture {
+    public static final String WINDOWS_ARGV = "--windows-argv";
+
     public static void main(String[] args) throws Exception {
         System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
         System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
@@ -29,6 +35,18 @@ public final class ProcessFixture {
             System.out.flush();
             Thread.sleep(120_000);
             return;
+        }
+        if (args.length > 0 && args[0].equals(WINDOWS_ARGV)) {
+            // The Java launcher converts arguments to the Windows ANSI code page.
+            String commandLine = NativeLibrary.getInstance("kernel32")
+                .getFunction("GetCommandLineW", Function.ALT_CONVENTION)
+                .invokePointer(new Object[0]).getWideString(0);
+            String[] nativeArgs = Shell32Util.CommandLineToArgv(commandLine);
+            int marker = Arrays.asList(nativeArgs).indexOf(WINDOWS_ARGV);
+            if (marker < 0) {
+                throw new IllegalStateException("Missing Windows argument marker");
+            }
+            args = Arrays.copyOfRange(nativeArgs, marker + 1, nativeArgs.length);
         }
         System.out.println("OUT=こんにちは");
         System.out.println("\u001b[31mCOLOR\u001b[0m");
