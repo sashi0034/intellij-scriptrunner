@@ -1,0 +1,56 @@
+name: Build Script Runner
+
+on:
+  push:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event.deleted == false
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Test and build the plugin
+        run: .\gradlew.bat --no-daemon test buildPlugin verifyPluginProjectConfiguration
+      - name: Upload installable ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: script-runner-plugin
+          path: build/distributions/*.zip
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
+
+  release:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the built ZIP
+        uses: actions/download-artifact@v8
+        with:
+          name: script-runner-plugin
+          path: release-assets
+      - name: Publish prerelease with the ZIP
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Script Runner build ${{ github.run_number }}
+          body: Built from commit ${{ github.sha }}.
+          prerelease: true
+          files: release-assets/*.zip
+          fail_on_unmatched_files: true
+          overwrite_files: false

@@ -78,6 +78,8 @@ IntelliJでは **Settings → Build, Execution, Deployment → Build Tools → G
 
 macOS/Linuxでは `./gradlew` を使います。インストール用ZIPは `build/distributions/` に生成されます。
 
+ブランチへの push で GitHub Actions がテストとビルドを実行します。成功すると **Actions → Build Script Runner → 該当する実行 → Artifacts** の `script-runner-plugin` をダウンロードできます。その中にインストール用 ZIP が入っています。`main` への push では、インストール用 ZIP が **Releases** の `build-<実行番号>` プレリリースにも添付されます。
+
 自動テストはYAML検証、パス・引数解決、プロセスのUTF-8出力・stderr・標準入力・環境変数・終了コード、同一スクリプトの二重起動防止、異なるスクリプトの並列実行と独立停止、子プロセスの停止を対象にします。プロセステストにはJDK上で動く小さなJavaプログラムを使い、Pythonやbashの追加インストールは不要です。
 
 IDE上の手動確認項目:
