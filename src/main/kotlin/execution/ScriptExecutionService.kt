@@ -116,6 +116,9 @@ class ScriptExecutionService(private val project: Project) : Disposable {
             release(active)
             onError(error.message ?: "Cannot save scripts.yml.")
             return false
+        } catch (error: Throwable) {
+            release(active)
+            throw error
         }
         ApplicationManager.getApplication().executeOnPooledThread {
             try {

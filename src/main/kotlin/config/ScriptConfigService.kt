@@ -3,6 +3,7 @@ package dev.sashi0034.config
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -77,9 +78,10 @@ class ScriptConfigService(private val project: Project) : Disposable {
     /** Called on EDT before execution. Only this plugin's YAML document is saved. */
     fun saveConfiguration() {
         ApplicationManager.getApplication().assertIsDispatchThread()
-        val file = configPath?.let { LocalFileSystem.getInstance().findFileByNioFile(it) } ?: return
-        val manager = FileDocumentManager.getInstance()
-        manager.getCachedDocument(file)?.let { document ->
+        WriteIntentReadAction.run {
+            val file = configPath?.let { LocalFileSystem.getInstance().findFileByNioFile(it) } ?: return@run
+            val manager = FileDocumentManager.getInstance()
+            val document = manager.getCachedDocument(file) ?: return@run
             manager.saveDocument(document)
             if (manager.isDocumentUnsaved(document)) {
                 throw ScriptConfigException("Cannot save scripts.yml. Save the configuration before running a script.")

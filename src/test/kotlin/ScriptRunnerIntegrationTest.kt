@@ -5,6 +5,9 @@ import com.intellij.execution.ui.RunContentDescriptor
 import com.intellij.execution.Executor
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.actionSystem.ActionToolbar
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.TransactionGuard
+import com.intellij.openapi.application.TransactionGuardImpl
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -23,6 +26,7 @@ import java.awt.Container
 import java.awt.event.MouseEvent
 import java.nio.file.Files
 import java.nio.file.Path
+import javax.swing.SwingUtilities
 
 /** Exercises project services, Swing views, document saves, and Run descriptors inside the IDE test platform. */
 class ScriptRunnerIntegrationTest : HeavyPlatformTestCase() {
@@ -135,7 +139,13 @@ class ScriptRunnerIntegrationTest : HeavyPlatformTestCase() {
         WriteCommandAction.runWriteCommandAction(project) { document.setText("version: 99\nscripts: []") }
         assertTrue(documents.isDocumentUnsaved(document))
         var error: String? = null
-        project.service<ScriptExecutionService>().run("fixture") { error = it }
+        // Reproduce a write-safe Swing input event that starts without the write-intent lock.
+        SwingUtilities.invokeLater {
+            (TransactionGuard.getInstance() as TransactionGuardImpl).performActivity(true) {
+                assertFalse(ApplicationManager.getApplication().isWriteIntentLockAcquired)
+                project.service<ScriptExecutionService>().run("fixture") { error = it }
+            }
+        }
         await { error != null }
         assertTrue(error.orEmpty().contains("version"))
         assertFalse(documents.isDocumentUnsaved(document))
